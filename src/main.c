@@ -17,15 +17,18 @@ int main(int argc, char *argv[]) {
   // Flush after every printf
   setbuf(stdout, NULL);
 
-  // Uncomment this block to pass the first stage
-  printf("$ ");
+  while (1)
+  {
+    // Uncomment this block to pass the first stage
+    printf("$ ");
 
-  // Wait for user input
-  char input[PROMPT_MAX];
-  fgets(input, PROMPT_MAX, stdin);
-
-  remove_trailing_newline(input);
-  printf("%s: command not found\n", input);
+    // Wait for user input
+    char input[PROMPT_MAX];
+    fgets(input, PROMPT_MAX, stdin);
+  
+    remove_trailing_newline(input);
+    printf("%s: command not found\n", input);
+  }
 
   return 0;
 }
