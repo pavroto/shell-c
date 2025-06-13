@@ -39,6 +39,7 @@ int shell_get_args(context_t* context);
 void shell_destroy_args(context_t* context);
 void shell_clean_args(context_t* context);
 
+int (*shell_builtin_lookup(char* key))(context_t* context);
 int shell_command_router(context_t* context);
 
 #endif

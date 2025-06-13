@@ -185,19 +185,27 @@ int shell_get_args(context_t* context) {
   return 0;
 }
 
-int shell_command_router(context_t* context) {
-
+int (*shell_builtin_lookup(char* key))(context_t* context) {
   static shell_command_map_entry_t command_map[] = {
     { "exit", builtin_exit },
-    { "echo", builtin_echo }
+    { "echo", builtin_echo },
+    { "type", builtin_type },
   };
 
   static size_t command_map_size = sizeof(command_map) / sizeof(shell_command_map_entry_t);
-
+  
   for (size_t i = 0; i < command_map_size; i++) {
-    if (strcmp(command_map[i].key, context->argv[0]) == 0) 
-      return command_map[i].function(context);
+    if (strcmp(command_map[i].key, key) == 0) 
+      return command_map[i].function;
   }
+  return NULL; 
+}
+
+int shell_command_router(context_t* context) {
+  int (*builtin_function)(context_t* context) = shell_builtin_lookup(context->argv[0]);
+
+  if (builtin_function != NULL)
+    return builtin_function(context);
 
   fprintf(stderr, "%s: command not found\n", context->argv[0]);
   return 1;
