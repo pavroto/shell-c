@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "shell.h"
+#include "builtin.h"
 
 uint8_t shell_exit_status;
 context_t* shell_context;
@@ -147,12 +148,6 @@ inline uint8_t get_exit_status() {
   return shell_exit_status;
 }
 
-int shell_exit(context_t* context) {
-  int return_code = (context->argc < 2) ? 0 : atoi(context->argv[1]);
-  shell_destroy_context(context);
-  exit(return_code);
-}
-
 int shell_get_args(context_t* context) {
 
   if (context == NULL) {
@@ -193,7 +188,8 @@ int shell_get_args(context_t* context) {
 int shell_command_router(context_t* context) {
 
   static shell_command_map_entry_t command_map[] = {
-    { "exit", shell_exit }
+    { "exit", builtin_exit },
+    { "echo", builtin_echo }
   };
 
   static size_t command_map_size = sizeof(command_map) / sizeof(shell_command_map_entry_t);
