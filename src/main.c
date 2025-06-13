@@ -1,33 +1,23 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 
-#define PROMPT_MAX 100
+#include "shell.h"
 
-int remove_trailing_newline(char* input) {
-  for (size_t i = 0; input[i] != '\0'; i++)
-    if (input[i] == '\n' && input[i+1] == '\0')
-    {
-      input[i] = '\0';
-      return 0;
-    }
-  return 0;
-}
+// TODO: Handle interruption
 
-int main(int argc, char *argv[]) {
-  // Flush after every printf
+extern context_t* shell_context;
+
+int main() {
   setbuf(stdout, NULL);
+
+  shell_initiate_context();
 
   while (1)
   {
-    // Uncomment this block to pass the first stage
-    printf("$ ");
-
-    // Wait for user input
-    char input[PROMPT_MAX];
-    fgets(input, PROMPT_MAX, stdin);
-  
-    remove_trailing_newline(input);
-    printf("%s: command not found\n", input);
+    shell_get_args(shell_context);
+    shell_command_router(shell_context);
+    shell_clean_args(shell_context);
   }
 
   return 0;
