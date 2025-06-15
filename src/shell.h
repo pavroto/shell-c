@@ -44,4 +44,8 @@ int shell_command_router(context_t* context);
 
 char* shell_path_executable_lookup(context_t* context, char* key);
 
+environment_variable_t* shell_get_environment_variable(context_t* context, char* key);
+environment_variable_t* shell_set_environment_variable(context_t* context, char* key, char* value);
+int shell_delete_environment_variable(context_t* context, char* key);
+
 #endif
