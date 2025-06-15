@@ -345,6 +345,7 @@ int (*shell_builtin_lookup(char* key))(context_t* context) {
     { "echo", builtin_echo },
     { "type", builtin_type },
     { "env",  builtin_env  },
+    { "pwd",  builtin_pwd  },
   };
 
   static size_t command_map_size = sizeof(command_map) / sizeof(shell_command_map_entry_t);

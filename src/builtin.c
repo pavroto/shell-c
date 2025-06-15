@@ -63,3 +63,18 @@ int builtin_env(context_t* context) {
   return 0;
 }
 
+int builtin_pwd(context_t* context) {
+
+  environment_variable_t* pwd_var;
+  if ((pwd_var = shell_get_environment_variable(context, "PWD")) != NULL) {
+    printf("%s\n", pwd_var->value);
+    return 0;
+  }
+
+  if ((pwd_var = shell_set_environment_variable(context, "PWD", "/")) != NULL) {
+    printf("%s\n", pwd_var->value);
+    return 0;
+  }
+
+  return 1;
+}
