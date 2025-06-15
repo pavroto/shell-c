@@ -2,11 +2,14 @@
 #include <string.h>
 #include <stdint.h>
 #include <dirent.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/types.h>
 
 #include "shell.h"
 #include "builtin.h"
 
-uint8_t shell_exit_status;
+int shell_exit_status;
 context_t* shell_context;
 
 int shell_destroy_context(context_t* context) {
@@ -238,7 +241,7 @@ char* shell_path_executable_lookup(context_t* context, char* key) {
 
           int desired_size = snprintf(executable_absolute_path, executable_absolute_path_size, "%s/%s", current_dir_path, ep->d_name);
           if (desired_size < 0 || (unsigned) desired_size >= executable_absolute_path_size){
-            fprintf(stderr, "snprintf error\n");
+            fprintf(stderr, "%s: snprintf error\n", __func__);
             free(path_buf);
             free(executable_absolute_path);
             return NULL;
@@ -252,6 +255,32 @@ char* shell_path_executable_lookup(context_t* context, char* key) {
 
   free(path_buf);
   return NULL;
+}
+
+char** shell_envp_compose(context_t* context) {
+  char** envp = (char**)malloc((context->environment->size + 1) * sizeof(char*));
+  environment_variable_t* current_var = context->environment->head;
+
+  size_t i;
+  for (i = 0; i < context->environment->size && current_var != NULL; i++) {
+    size_t var_size = strlen(current_var->key) + strlen(current_var->value) + 2;
+    envp[i] = (char*)malloc(var_size);
+    int desired_size = snprintf(envp[i], var_size, "%s=%s", current_var->key, current_var->value);
+
+    if (desired_size < 0 || (unsigned) desired_size >= var_size){
+      fprintf(stderr, "%s: snprintf error\n", __func__);
+      for (size_t k = 0; k <= i; k++) 
+        free(envp[k]);
+      free(envp);
+      return NULL;
+    }
+
+    current_var = current_var->next;
+  }
+
+  envp[i+1] = NULL;
+
+  return envp;
 }
 
 int shell_get_args(context_t* context) {
@@ -280,6 +309,7 @@ int shell_get_args(context_t* context) {
   if (token == NULL) 
     return 0; // empty input;
 
+  size_t i = 0;
   do
   {
     // WARNING: What to do with \" character?
@@ -302,7 +332,9 @@ int shell_get_args(context_t* context) {
     strncpy(context->argv[context->argc], token, token_size);
     context->argc += 1;
 
-  } while ((token = strtok(NULL, SHELL_PROMPT_DELIMITERS)) != NULL);
+  } while ((token = strtok(NULL, SHELL_PROMPT_DELIMITERS)) != NULL && i++ < SHELL_PROMPT_ARGS_COUNT_MAX - 1);
+
+  context->argv[i+1] = NULL; // Ensure that argv is NULL terminated
 
   return 0;
 }
@@ -325,10 +357,53 @@ int (*shell_builtin_lookup(char* key))(context_t* context) {
 }
 
 int shell_command_router(context_t* context) {
+  char** envp; 
+  char* executable_path;
+  int last_exit_status;
   int (*builtin_function)(context_t* context) = shell_builtin_lookup(context->argv[0]);
 
   if (builtin_function != NULL)
     return builtin_function(context);
+
+  if ((executable_path = shell_path_executable_lookup(context, context->argv[0])) != NULL) {
+    pid_t pid = fork();
+    int return_code = 0;
+
+    if (pid == 0) { // If a child process
+      if ((envp = shell_envp_compose(context)) == NULL) {
+        free(executable_path);
+        exit(127);
+      }
+
+      if (execve(executable_path, context->argv, envp) == -1) {
+        perror("execve failed");
+        free(executable_path);
+        free(envp);
+        exit(127);
+      }
+
+    } else if (pid > 0) { // If a parent process
+
+      waitpid(pid, &return_code, 0);
+
+      if ( WIFEXITED(return_code) ) {
+        // TODO: add support for environment variable
+        shell_exit_status = WEXITSTATUS(return_code);
+      }
+
+      free(envp);
+
+    } else {
+
+      perror("Fork failed");
+      free(executable_path);
+      return 2;
+
+    }
+
+    free(executable_path);
+    return 0;
+  }
 
   fprintf(stderr, "%s: command not found\n", context->argv[0]);
   return 1;
