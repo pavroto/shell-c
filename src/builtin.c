@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <dirent.h>
 
 #include "shell.h"
 
@@ -23,6 +24,7 @@ int builtin_echo(context_t* context) {
 }
 
 int builtin_type(context_t* context) {
+  // TODO: Find 
   if (context->argc < 2)
     return 0;
 
@@ -33,6 +35,31 @@ int builtin_type(context_t* context) {
     return 0;
   }
 
+  char* executable_path;
+  if ((executable_path = shell_path_executable_lookup(context, context->argv[1])) != NULL) {
+    printf("%s is %s\n", context->argv[1], executable_path);
+    free(executable_path);
+    return 0;
+  }
+
   fprintf(stderr, "%s: not found\n", context->argv[1]);
   return 1;
 }
+
+int builtin_env(context_t* context) {
+  if (context == NULL)
+    return 1;
+
+  if (context->environment == NULL)
+    return 1;
+
+  environment_variable_t* current_var = context->environment->head;
+
+  while (current_var != NULL) {
+    printf("%s=%s\n", current_var->key, current_var->value);
+    current_var = current_var->next;
+  }
+
+  return 0;
+}
+

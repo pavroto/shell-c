@@ -24,7 +24,7 @@ typedef struct {
 typedef struct {
   environment_t* environment;
   char** argv;
-  int argc;
+  size_t argc;
 } context_t;
 
 typedef struct {
@@ -32,7 +32,7 @@ typedef struct {
   int (* function)(context_t* context);
 } shell_command_map_entry_t;
 
-context_t* shell_initiate_context();
+context_t* shell_initiate_context(char** envp);
 int shell_destroy_context(context_t* context);
 
 int shell_get_args(context_t* context);
@@ -41,5 +41,7 @@ void shell_clean_args(context_t* context);
 
 int (*shell_builtin_lookup(char* key))(context_t* context);
 int shell_command_router(context_t* context);
+
+char* shell_path_executable_lookup(context_t* context, char* key);
 
 #endif

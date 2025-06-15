@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <dirent.h>
 
 #include "shell.h"
 #include "builtin.h"
@@ -8,26 +9,27 @@
 uint8_t shell_exit_status;
 context_t* shell_context;
 
-context_t* shell_initiate_context() {
-  shell_context = (context_t*)malloc(sizeof(context_t));
-  shell_context->environment = (environment_t*)malloc(sizeof(environment_t));
-  shell_context->environment->size = 0;
-
-  shell_context->argv = (char**)calloc(SHELL_PROMPT_ARGS_COUNT_MAX, sizeof(char*));
-  shell_context->argc = 0;
-
-  return shell_context;
-}
-
 int shell_destroy_context(context_t* context) {
+  environment_variable_t* previous_var;
+  environment_variable_t* current_var = context->environment->head;
 
-  // Free environment variables
-  for (size_t i = 0; i < context->environment->size; i++) {
-    free(context->environment->head->key);
-    free(context->environment->head->value);
-    free(context->environment->head);
+  while (current_var != NULL) {
+    free (current_var->key);
+    free (current_var->value);
+
+    if (current_var->next != NULL) {
+      previous_var = current_var;
+      current_var = current_var->next;
+      free(previous_var);
+    }
+    else
+    {
+      free(current_var);
+      break;
+    }
   }
 
+  free(context->environment);
   free(context);
 
   return 0;
@@ -56,6 +58,7 @@ environment_variable_t* shell_get_environment_variable(context_t* context, char*
   while (current_var != NULL) {
     if (strcmp(current_var->key, key) == 0)
       return current_var;
+    current_var = current_var->next;
   }
   return NULL;
 }
@@ -99,6 +102,7 @@ environment_variable_t* shell_set_environment_variable(context_t* context, char*
   environment_variable_t* current_var = context->environment->head;
 
   if (value[0] == '\0') {
+    fprintf(stderr, "Trying to delete %s variable\n", key);
     shell_delete_environment_variable(context, key);
     return NULL;
   }
@@ -114,6 +118,7 @@ environment_variable_t* shell_set_environment_variable(context_t* context, char*
 
     if (current_var->next == NULL)
       break;
+
     current_var = current_var->next;
   } 
 
@@ -137,15 +142,116 @@ environment_variable_t* shell_set_environment_variable(context_t* context, char*
     new_variable->previous = current_var;
     current_var->next = new_variable; 
   }
-  else 
+  else {
     new_variable->previous = NULL;
+    context->environment->head = new_variable;
+  }
+
+  context->environment->size += 1;
 
   return new_variable;
+}
+
+void shell_clean_environment(context_t* context) {
+  environment_variable_t* cur = context->environment->head;
+  environment_variable_t* previous = NULL;
+  while (cur != NULL) {
+    free(cur->key);
+    free(cur->value);
+
+    previous = cur;
+    cur = cur->next;
+
+    if (previous != NULL)
+      free(previous);
+  }
+
+  context->environment->head = NULL;
+  context->environment->size = 0;
+}
+
+context_t* shell_initiate_context(char** envp) {
+  if ((shell_context = (context_t*)malloc(sizeof(context_t))) == NULL) {
+    fprintf(stderr, "Context memory allocation failed\n");
+    return NULL;
+  }
+
+  if ((shell_context->environment = (environment_t*)malloc(sizeof(environment_t))) == NULL) {
+    free(shell_context);
+    fprintf(stderr, "Context Environment memory allocation failed\n");
+    return NULL;
+  }
+
+  shell_context->environment->size = 0;
+
+  if ((shell_context->argv = (char**)calloc(SHELL_PROMPT_ARGS_COUNT_MAX, sizeof(char*))) == NULL) {
+    free(shell_context->environment);
+    free(shell_context);
+    fprintf(stderr, "Context Arguments memory allocation failed\n");
+    return NULL;
+  }
+
+  shell_context->argc = 0;
+
+  for (char** env = envp; *env != 0; env++) {
+    char* variable;
+    if ((variable = strdup(*env)) == NULL) {
+      shell_clean_environment(shell_context);
+      free(shell_context->environment);
+      free(shell_context);
+      return NULL;
+    }
+
+    char* key = strtok(variable, "=");
+    char* value = strtok(NULL, "=");
+    
+    if (shell_set_environment_variable(shell_context, key, value) == NULL) {
+      fprintf(stderr, "WARNING: Unable to set environment variable %s\n", key);
+    }
+    free(variable);
+  }
+
+  return shell_context;
 }
 
 inline uint8_t get_exit_status() {
   // TODO: Get and set this value in environment variables
   return shell_exit_status;
+}
+
+char* shell_path_executable_lookup(context_t* context, char* key) {
+  DIR* current_dir;
+  struct dirent* ep;
+
+  environment_variable_t* path_variable = shell_get_environment_variable(context, "PATH");
+  char* path_buf = strdup(path_variable->value);
+
+  char* current_dir_path = strtok(path_buf, ":");
+
+  do {
+    if ((current_dir = opendir(current_dir_path)) != NULL) {
+
+      while ((ep = readdir(current_dir)) != NULL) 
+        if (strcmp(ep->d_name, key) == 0) {
+          size_t executable_absolute_path_size = strlen(current_dir_path) + strlen(ep->d_name) + 2; // '/' and '\0'
+          char* executable_absolute_path = (char*)malloc(executable_absolute_path_size);
+
+          int desired_size = snprintf(executable_absolute_path, executable_absolute_path_size, "%s/%s", current_dir_path, ep->d_name);
+          if (desired_size < 0 || (unsigned) desired_size >= executable_absolute_path_size){
+            fprintf(stderr, "snprintf error\n");
+            free(path_buf);
+            free(executable_absolute_path);
+            return NULL;
+          }
+          free (path_buf);
+          return executable_absolute_path;
+        }
+
+    }
+  } while ((current_dir_path = strtok(NULL, ":")) != NULL);
+
+  free(path_buf);
+  return NULL;
 }
 
 int shell_get_args(context_t* context) {
@@ -176,10 +282,26 @@ int shell_get_args(context_t* context) {
 
   do
   {
+    // WARNING: What to do with \" character?
+    if (token[0] == '$') {
+      environment_variable_t* var;
+
+      if ((var = shell_get_environment_variable(context, token+1)) == NULL) 
+        continue;
+
+      size_t value_size = strlen(var->value) + 1;
+      context->argv[context->argc] = (char*)malloc(value_size);
+      strncpy(context->argv[context->argc], var->value, value_size);
+      context->argc += 1;
+
+      continue;
+    }
+
     size_t token_size = strlen(token) + 1;
     context->argv[context->argc] = (char*)malloc(token_size);
     strncpy(context->argv[context->argc], token, token_size);
     context->argc += 1;
+
   } while ((token = strtok(NULL, SHELL_PROMPT_DELIMITERS)) != NULL);
 
   return 0;
@@ -190,6 +312,7 @@ int (*shell_builtin_lookup(char* key))(context_t* context) {
     { "exit", builtin_exit },
     { "echo", builtin_echo },
     { "type", builtin_type },
+    { "env",  builtin_env  },
   };
 
   static size_t command_map_size = sizeof(command_map) / sizeof(shell_command_map_entry_t);

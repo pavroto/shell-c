@@ -8,10 +8,13 @@
 
 extern context_t* shell_context;
 
-int main() {
+int main(int argc, char** argv, char** envp) {
   setbuf(stdout, NULL);
 
-  shell_initiate_context();
+  if (shell_initiate_context(envp) == NULL) {
+    fprintf(stderr, "CONTEXT INITIATION FAILED. EXITING.");
+    return 1;
+  }
 
   while (1)
   {
