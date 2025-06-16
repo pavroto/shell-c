@@ -1,5 +1,8 @@
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 #include <dirent.h>
+#include <linux/limits.h>
 
 #include "shell.h"
 
@@ -24,18 +27,15 @@ int builtin_echo(context_t* context) {
 }
 
 int builtin_type(context_t* context) {
-  // TODO: Find 
   if (context->argc < 2)
     return 0;
 
-  int (*builtin_function)(context_t* context) = shell_builtin_lookup(context->argv[1]);
-
-  if (builtin_function != NULL) {
+  if (shell_builtin_lookup(context->argv[1]) != NULL) {
     printf("%s is a shell builtin\n", context->argv[1]);
     return 0;
   }
 
-  char* executable_path;
+  char *executable_path;
   if ((executable_path = shell_path_executable_lookup(context, context->argv[1])) != NULL) {
     printf("%s is %s\n", context->argv[1], executable_path);
     free(executable_path);
@@ -47,34 +47,39 @@ int builtin_type(context_t* context) {
 }
 
 int builtin_env(context_t* context) {
-  if (context == NULL)
-    return 1;
-
-  if (context->environment == NULL)
-    return 1;
-
-  environment_variable_t* current_var = context->environment->head;
-
-  while (current_var != NULL) {
-    printf("%s=%s\n", current_var->key, current_var->value);
-    current_var = current_var->next;
-  }
-
+  for (size_t i = 0; context->envp[i] != NULL; i++)
+    printf("%s\n", context->envp[i]);
   return 0;
 }
 
 int builtin_pwd(context_t* context) {
+  char cwd[PATH_MAX];
+  printf("%s\n", getcwd(cwd, sizeof(cwd)));
+  return 0;
+}
 
-  environment_variable_t* pwd_var;
-  if ((pwd_var = shell_get_environment_variable(context, "PWD")) != NULL) {
-    printf("%s\n", pwd_var->value);
+int builtin_cd(context_t* context) {
+  if (context->argc < 2) {
+    environment_variable_t* home_var = shell_get_env_var("HOME");
+
+    if (home_var == NULL) {
+      fprintf(stderr, "cd: Unable to get $HOME variable.\n");
+      return 1;
+    }
+
+    if (chdir(home_var->value) == -1) {
+      perror(home_var->value);
+      free(home_var);
+      return 1;
+    }
+
     return 0;
   }
 
-  if ((pwd_var = shell_set_environment_variable(context, "PWD", "/")) != NULL) {
-    printf("%s\n", pwd_var->value);
-    return 0;
+  if (chdir(context->argv[1]) == -1) {
+    perror(context->argv[1]);
+    return 1;
   }
 
-  return 1;
+  return 0;
 }

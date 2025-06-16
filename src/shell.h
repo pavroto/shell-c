@@ -8,21 +8,13 @@
 #define SHELL_PROMPT_SIZE_MAX 100
 #define SHELL_PROMPT_ARGS_COUNT_MAX (SHELL_PROMPT_SIZE_MAX / 2)
 
-typedef struct environment_variable_struct {
+typedef struct {
   char* key;
   char* value;
-
-  struct environment_variable_struct* next;
-  struct environment_variable_struct* previous;
 } environment_variable_t;
 
 typedef struct {
-  environment_variable_t* head;
-  size_t size;
-} environment_t;
-
-typedef struct {
-  environment_t* environment;
+  char** envp;
   char** argv;
   size_t argc;
 } context_t;
@@ -40,12 +32,11 @@ void shell_destroy_args(context_t* context);
 void shell_clean_args(context_t* context);
 
 int (*shell_builtin_lookup(char* key))(context_t* context);
+char* shell_path_executable_lookup(context_t* context, char* key);
 int shell_command_router(context_t* context);
 
-char* shell_path_executable_lookup(context_t* context, char* key);
-
-environment_variable_t* shell_get_environment_variable(context_t* context, char* key);
-environment_variable_t* shell_set_environment_variable(context_t* context, char* key, char* value);
-int shell_delete_environment_variable(context_t* context, char* key);
+int shell_unset_env_var(char* key);
+int shell_set_env_var(char* key, char* value, int overwrite);
+environment_variable_t* shell_get_env_var(char* key);
 
 #endif
