@@ -73,10 +73,27 @@ int builtin_cd(context_t* context) {
       return 1;
     }
 
+    free(home_var);
     return 0;
   }
+  else if (strcmp(context->argv[1], "~") == 0) {
+    environment_variable_t* home_var = shell_get_env_var("HOME");
 
-  if (chdir(context->argv[1]) == -1) {
+    if (home_var == NULL) {
+      fprintf(stderr, "cd: Unable to get $HOME variable.\n");
+      return 1;
+    }
+
+    if (chdir(home_var->value) == -1) {
+      perror(home_var->value);
+      free(home_var);
+      return 1;
+    }
+
+    free(home_var);
+    return 0;
+  }
+  else if (chdir(context->argv[1]) == -1) {
     perror(context->argv[1]);
     return 1;
   }

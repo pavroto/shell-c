@@ -114,6 +114,10 @@ int shell_get_args(context_t* context) {
     if (token[0] == '$') {
 
       environment_variable_t* var = shell_get_env_var(token+1);
+
+      if (var == NULL)
+        continue;
+
       size_t value_size = strlen(var->value) + 1;
       context->argv[context->argc] = (char*)malloc(value_size);
       strncpy(context->argv[context->argc], var->value, value_size);
@@ -215,13 +219,10 @@ int shell_command_router(context_t* context) {
         shell_exit_status = WEXITSTATUS(return_code);
       }
 
-
     } else {
-
       perror("Fork failed");
       free(executable_path);
       return 2;
-
     }
 
     free(executable_path);
